@@ -1,0 +1,112 @@
+#include <Wire.h>
+
+float RateRoll, RatePitch, RateYaw;
+
+float AccX, AccY, AccZ;
+
+float AngleRoll, AnglePitch, AngleYaw;
+
+float LoopTimer;
+
+//%%Ham lay tin hieu gia toc goc 
+void gyro_signals(void){
+  //%Cau hinh bo loc
+  Wire.beginTransmission(0x68);//khoi tao giao tiep I2C, gia tri address default cua mpu6050 0x68
+  Wire.write(0x1A); //Wire.write: truy cap den thanh ghi de config. Thanh ghi bo loc thong thap Low Pass Filter 0x1A
+  Wire.write(0x04); // Loc tan so nao tren 21HZ voi Acc va 20 Hz voi Gyro. tra datasheet 
+  Wire.endTransmission();
+
+  //%Cau hinh thanh ghi Acceleration
+  Wire.beginTransmission(0x68);
+  Wire.write(0x1C); //Address thanh ghi Config Acclera
+  Wire.write(0x8); // Config AFS_SEL = 2, full_scale = +-4G, LSB = 8192 LSB/G
+  Wire.endTransmission();
+  
+  //%Doc gia tri ve tu thanh ghi Accleration
+  Wire.beginTransmission(0x68);
+  Wire.write(0x3B); //Chi ra thanh ghi dau tien se su dung cua bo gia toc dai
+  Wire.endTransmission();
+
+  Wire.requestFrom(0x68, 6); // yeu cua 6 byte tu slave address MPU
+  int16_t AccXLSB = Wire.read()<<8|Wire.read(); // Wire.read: doc 1 byte tu bo dem I2C sau khi Wire.requestFrom, dich sang trai 8 bit ket hop toan tu OR: | de cong tao thanh 16 bit. VD: 0x1A << 8 = 0x1A00 | 0x12 = 0x1A12
+  int16_t AccYLSB = Wire.read()<<8|Wire.read();
+  int16_t AccZLSB = Wire.read()<<8|Wire.read();
+
+  AccX = (float)AccXLSB/8192 - 0.06; //convert ve g
+  AccY = (float)AccYLSB/8192 +0.02;
+  AccZ = (float)AccZLSB/8192 + 0.11;
+
+  //%Cau hinh full scale Gyro
+  Wire.beginTransmission(0x68);
+  Wire.write(0x1B); //Address thanh ghi Config Gyro
+  Wire.write(0x8); // Config FS_SEL = 1, full_scale = +-500degree/s,LSB = 65.5 LSB/degree/s
+  Wire.endTransmission();
+
+  //%Doc gia tri ve tu thanh ghi Accleration
+  Wire.beginTransmission(0x68);
+  Wire.write(0x43); //Chi ra thanh ghi dau tien se su dung cua bo gia toc dai
+  Wire.endTransmission();
+
+  Wire.requestFrom(0x68, 6); // yeu cua 6 byte tu slave address MPU
+  int16_t GyroX = Wire.read()<<8|Wire.read(); // Wire.read: doc 1 byte tu bo dem I2C sau khi Wire.requestFrom, dich sang trai 8 bit ket hop toan tu OR: | de cong tao thanh 16 bit. VD: 0x1A << 8 = 0x1A00 | 0x12 = 0x1A12
+  int16_t GyroY = Wire.read()<<8|Wire.read();
+  int16_t GyroZ = Wire.read()<<8|Wire.read();
+
+  RateRoll = (float)GyroX/65.5; //convert ve degree/s
+  RatePitch = (float)GyroY/65.5;
+  RateYaw = (float)GyroZ/65.5;
+
+  //%Tinh value cac angle
+  AngleRoll = atan(AccY/sqrt(AccX*AccX+AccZ*AccZ))*1/(3.142/180);
+  AnglePitch = -atan(AccX/sqrt(AccY*AccY+AccZ*AccZ))*1/(3.142/180);
+  AngleYaw = atan(AccZ/sqrt(AccY*AccY+AccX*AccX))*1/(3.142/180);
+}
+void setup() {
+  Serial.begin(57600);
+  pinMode(13, OUTPUT);
+  digitalWrite(13,HIGH);
+
+  Wire.setClock(400000);//Communication for MPU605 is 400kHz follow datasheet
+  Wire.begin();
+  delay(250);
+
+  //%Tat che do ngu
+  Wire.beginTransmission(0x68);
+  Wire.write(0x6B); // Thanh ghi management power
+  Wire.write(0x00);
+  Wire.endTransmission();
+
+  //%Calibration vi tri home
+//  for(RateCalibrationNumber = 0; RateCalibrationNumber < 2000; RateCalibrationNumber++){ //doc value tai home 2000 lan, time 2s sethome
+//    gyro_signals();
+//    RateCalibrationRoll += RateRoll;
+//    RateCalibrationPitch += RatePitch;
+//    RateCalibrationYaw += RateYaw;
+//    delay(1); 
+//  }
+//  RateCalibrationRoll/=2000;
+//  RateCalibrationPitch/=2000;
+//  RateCalibrationYaw/=2000;
+  
+}
+
+void loop() {
+  gyro_signals();
+
+  //Doc gia toc de Calib lai
+  Serial.print("AccX = ");
+  Serial.print(AccX);
+  Serial.print(" AccY = ");
+  Serial.print(AccY);
+  Serial.print(" AccZ= ");
+  Serial.println(AccZ);
+
+  //Doc gia tri goc
+//  Serial.print("Roll angle [°]= ");
+//  Serial.print(AngleRoll);
+//  Serial.print(" Pitch angle [°]= ");
+//  Serial.print(AnglePitch);
+//  Serial.print(" Yaw angle [°]= ");
+//  Serial.println(AngleYaw);
+  delay(50);
+}
